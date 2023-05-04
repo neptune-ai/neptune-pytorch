@@ -43,7 +43,7 @@ include = ["CHANGELOG.md"]
 license = "Apache License 2.0"
 name = "neptune-pytorch"
 readme = "README.md"
-version = "0.0.0"
+version = "0.1.0"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
