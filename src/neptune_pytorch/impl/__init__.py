@@ -113,19 +113,19 @@ class NeptuneLogger:
         self._vis_hook_handler = None
         if log_model_diagram:
             self.run[self._base_namespace]["model"]["summary"] = str(model)
-            self.add_visualization_hook()
+            self._add_visualization_hook()
 
         self.log_gradients = log_gradients
         self._gradients_iter_tracker = {}
         self._gradients_hook_handler = {}
         if self.log_gradients:
-            self.add_hooks_for_grads()
+            self._add_hooks_for_grads()
 
         self.log_parameters = log_parameters
         self._params_iter_tracker = 0
         self._params_hook_handler = None
         if self.log_parameters:
-            self.add_hooks_for_params()
+            self._add_hooks_for_params()
 
         # Log integration version
         root_obj = self.run
@@ -134,7 +134,7 @@ class NeptuneLogger:
 
         root_obj[INTEGRATION_VERSION_KEY] = __version__
 
-    def add_hooks_for_grads(self):
+    def _add_hooks_for_grads(self):
         for name, parameter in self.model.named_parameters():
             self._gradients_iter_tracker[name] = 0
 
@@ -145,7 +145,7 @@ class NeptuneLogger:
 
             self._gradients_hook_handler[name] = parameter.register_hook(hook)
 
-    def add_visualization_hook(self):
+    def _add_visualization_hook(self):
         if not IS_TORCHVIZ_AVAILABLE:
             msg = "Skipping model visualization because no torchviz installation was found."
             warnings.warn(msg)
@@ -170,7 +170,7 @@ class NeptuneLogger:
 
         self._vis_hook_handler = self.model.register_forward_hook(hook)
 
-    def add_hooks_for_params(self):
+    def _add_hooks_for_params(self):
         def hook(module, inp, output):
             self._params_iter_tracker += 1
             if self._params_iter_tracker % self.log_freq == 0:

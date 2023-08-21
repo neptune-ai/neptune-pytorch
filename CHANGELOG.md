@@ -1,4 +1,12 @@
-## neptune-pytorch 1.1.0
+## neptune-pytorch 2.0.0
+
+### Changes
+- Rename `save_model` to `log_model` and `save_checkpoint` to `log_checkpoint`. (https://github.com/neptune-ai/neptune-pytorch/pull/9)
+- Prefix private methods with underscore. (https://github.com/neptune-ai/neptune-pytorch/pull/12)
+- Add docstrings for `log_model` and `log_checkpoint`. (https://github.com/neptune-ai/neptune-pytorch/pull/11)
+
+
+## neptune-pytorch 1.1.0 (YANKED)
 
 ### Fixes
 - Rename `save_model` to `log_model` and `save_checkpoint` to `log_checkpoint`. (https://github.com/neptune-ai/neptune-pytorch/pull/9)
