@@ -181,10 +181,7 @@ class NeptuneLogger:
             self._params_iter_tracker += 1
             if self._params_iter_tracker % self.log_freq == 0:
                 for name, param in module.named_parameters():
-                    if self._param_preproc is None:
-                        x = param.norm()
-                    else:
-                        x = self._param_preproc(param)
+                    x = param.norm() if self._param_preproc is None else self._param_preproc(param)
                     self._namespace_handler["plots"]["parameters"][name].append(x)
 
         self._params_hook_handler = self.model.register_forward_hook(hook)
