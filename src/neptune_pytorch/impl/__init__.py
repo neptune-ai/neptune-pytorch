@@ -146,10 +146,7 @@ class NeptuneLogger:
             def hook(grad, name=name):
                 self._gradients_iter_tracker[name] += 1
                 if self._gradients_iter_tracker[name] % self.log_freq == 0:
-                    if self._grad_preproc is None:
-                        x = grad.norm()
-                    else:
-                        x = self._grad_preproc(grad)
+                    x = grad.norm() if self._grad_preproc is None else self._grad_preproc(grad)
                     self._namespace_handler["plots"]["gradients"][name].append(x)
 
             self._gradients_hook_handler[name] = parameter.register_hook(hook)
