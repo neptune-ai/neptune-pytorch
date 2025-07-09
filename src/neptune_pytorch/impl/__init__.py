@@ -22,6 +22,7 @@ import weakref
 from typing import (
     Optional,
     Union,
+    Callable,
 )
 
 import torch
@@ -98,6 +99,8 @@ class NeptuneLogger:
         log_gradients: bool = False,
         log_parameters: bool = False,
         log_freq: int = 100,
+        param_preproc: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
+        grad_preproc: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
     ):
         verify_type("run", run, (Run, Handler))
 
@@ -119,12 +122,14 @@ class NeptuneLogger:
         self._gradients_iter_tracker = {}
         self._gradients_hook_handler = {}
         if self.log_gradients:
+            self._grad_preproc = grad_preproc
             self._add_hooks_for_grads()
 
         self.log_parameters = log_parameters
         self._params_iter_tracker = 0
         self._params_hook_handler = None
         if self.log_parameters:
+            self._param_preproc = param_preproc
             self._add_hooks_for_params()
 
         # Log integration version
@@ -136,12 +141,16 @@ class NeptuneLogger:
 
     def _add_hooks_for_grads(self):
         for name, parameter in self.model.named_parameters():
+            if not parameter.requires_grad:
+                continue
+
             self._gradients_iter_tracker[name] = 0
 
             def hook(grad, name=name):
                 self._gradients_iter_tracker[name] += 1
                 if self._gradients_iter_tracker[name] % self.log_freq == 0:
-                    self._namespace_handler["plots"]["gradients"][name].append(grad.norm())
+                    x = grad.norm() if self._grad_preproc is None else self._grad_preproc(grad)
+                    self._namespace_handler["plots"]["gradients"][name].append(x)
 
             self._gradients_hook_handler[name] = parameter.register_hook(hook)
 
@@ -175,7 +184,8 @@ class NeptuneLogger:
             self._params_iter_tracker += 1
             if self._params_iter_tracker % self.log_freq == 0:
                 for name, param in module.named_parameters():
-                    self._namespace_handler["plots"]["parameters"][name].append(param.norm())
+                    x = param.norm() if self._param_preproc is None else self._param_preproc(param)
+                    self._namespace_handler["plots"]["parameters"][name].append(x)
 
         self._params_hook_handler = self.model.register_forward_hook(hook)
 

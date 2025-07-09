@@ -1,3 +1,8 @@
+## neptune-pytorch 2.0.1
+
+### Changes
+- Add optional `param_preproc` and `grad_preproc` arguments to implement custom aggregation functions or handle nan/inf values.
+
 ## neptune-pytorch 2.0.0
 
 ### Changes
