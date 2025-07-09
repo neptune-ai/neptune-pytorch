@@ -141,6 +141,9 @@ class NeptuneLogger:
 
     def _add_hooks_for_grads(self):
         for name, parameter in self.model.named_parameters():
+            if not parameter.requires_grad:
+                continue
+
             self._gradients_iter_tracker[name] = 0
 
             def hook(grad, name=name):
