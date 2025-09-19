@@ -1,31 +1,22 @@
+import contextlib
+
 __all__ = ["__version__"]
 
-import sys
+from importlib.metadata import (
+    PackageNotFoundError,
+    version,
+)
 from importlib.util import find_spec
 
-if sys.version_info >= (3, 8):
-    from importlib.metadata import (
-        PackageNotFoundError,
-        version,
-    )
-else:
-    from importlib_metadata import (
-        PackageNotFoundError,
-        version,
-    )
-
-if not (find_spec("neptune") or find_spec("neptune-client")):
+if not (find_spec("neptune_scale")):
     msg = """
-            The Neptune client library was not found.
+            The Neptune Scale client library was not found.
 
-            Install the neptune package with
-                `pip install neptune`
+            Install the neptune-scale package with
+                `pip install -U neptune-scale`
 
-            Need help? -> https://docs.neptune.ai/setup/installation/"""
+            Need help? -> https://docs.neptune.ai/setup"""
     raise PackageNotFoundError(msg)
 
-try:
+with contextlib.suppress(PackageNotFoundError):
     __version__ = version("neptune-pytorch")
-except PackageNotFoundError:
-    # package is not installed
-    pass
