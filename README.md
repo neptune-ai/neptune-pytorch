@@ -6,8 +6,8 @@
 [![neptune_scale](https://img.shields.io/badge/neptune__scale-0.14.0+-orange.svg)](https://pypi.org/project/neptune-scale/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://opensource.org/licenses/Apache-2.0)
-</div>
 
+</div>
 
 The **Neptune-PyTorch** integration simplifies tracking your PyTorch experiments with Neptune by providing automated tracking of PyTorch model internals including activations, gradients, and parameters.
 
@@ -87,6 +87,7 @@ for epoch in range(num_epochs):
 ```
 
 **Logged data in Neptune:**
+
 - **Model architecture**: Visual diagram and summary of the neural network
 - **Training metrics**: Loss curves and epoch progress
 - **Layer activations**: Mean, std, norm, histograms for each layer
@@ -176,6 +177,7 @@ for epoch in range(num_epochs):
 ```
 
 **Features demonstrated:**
+
 - **Layer filtering**: Only track Conv2d and Linear layers (reduces overhead)
 - **Custom statistics**: Use mean, std, hist instead of all 8 statistics
 - **Phase-specific tracking**: Different tracking strategies for train/validation
@@ -184,23 +186,27 @@ for epoch in range(num_epochs):
 ## Features
 
 ### Model monitoring
+
 - **Layer activations**: Track activation patterns across all layers with 8 different statistics
 - **Gradient analysis**: Monitor gradient flow and detect vanishing/exploding gradients
 - **Parameter tracking**: Log parameter statistics and distributions for model analysis
 - **Custom statistics**: Choose from mean, std, norm, min, max, var, abs_mean, and hist
 
 ### Configuration options
+
 - **Layer filtering**: Track only specific layer types (Conv2d, Linear, etc.)
 - **Phase organization**: Separate tracking for training/validation phases with custom prefixes
 - **Custom namespaces**: Organize experiments with custom folder structures
 
 ### Visualizations
+
 - **Model architecture**: Automatic model diagram generation with torchviz
 - **Distribution histograms**: 50-bin histograms for all tracked metrics
 - **Real-time monitoring**: Live tracking during training with Neptune
 - **Comparative analysis**: Easy comparison across experiments and runs
 
 ### Integration
+
 - **Minimal setup**: Simple integration with existing code
 - **PyTorch native**: Works with existing PyTorch workflows
 
@@ -263,6 +269,7 @@ The integration organizes all logged data under a clear hierarchical and customi
 **Example namespaces:**
 
 With `base_namespace="my_experiment"`:
+
 - `my_experiment/batch/loss` - Training loss
 - `my_experiment/model/summary` - Model architecture
 - `my_experiment/model/internals/activations/conv/1/mean` - Mean activation (no prefix)
@@ -270,6 +277,7 @@ With `base_namespace="my_experiment"`:
 - `my_experiment/model/internals/validation/gradients/linear1/norm` - L2 norm of gradients (with "validation" prefix)
 
 With `base_namespace=None`:
+
 - `batch/loss` - Training loss
 - `model/summary` - Model architecture
 - `model/internals/activations/conv/1/mean` - Mean activation (no prefix)
@@ -277,6 +285,7 @@ With `base_namespace=None`:
 - `model/internals/validation/gradients/linear1/norm` - L2 norm of gradients (with "validation" prefix)
 
 **Layer name handling:**
+
 - Dots in layer names are automatically replaced with forward slashes for proper namespace organization
 - Example: `seq_model.0.weight` becomes `seq_model/0/weight` in the namespace
 - Example: `module.submodule.layer` becomes `module/submodule/layer` in the namespace
@@ -293,12 +302,13 @@ NeptuneLogger(
     model: torch.nn.Module,
     base_namespace: Optional[str] = None,
     track_layers: Optional[List[Type[nn.Module]]] = None,
-    tensor_stats: Optional[List[str]] = None,
+    tensor_stats: Optional[List[TensorStatType]] = None,
     log_model_diagram: bool = False
 )
 ```
 
 **Parameters:**
+
 - `run`: Neptune run object for logging
 - `model`: PyTorch model to track
 - `base_namespace`: Optional top-level folder for organization (default: `None`)
@@ -319,6 +329,7 @@ log_model_internals(
 ```
 
 **Parameters:**
+
 - `step`: Current training step for logging
 - `track_activations`: Track layer activations (default: `True`)
 - `track_gradients`: Track layer gradients (default: `True`)
@@ -327,16 +338,16 @@ log_model_internals(
 
 ### Available statistics
 
-| Statistic | Description | Use Case |
-|-----------|-------------|----------|
-| `mean` | Mean value | Monitor activation levels |
-| `std` | Standard deviation | Detect activation variance |
-| `norm` | L2 norm | Monitor gradient/activation magnitude |
-| `min` | Minimum value | Detect dead neurons |
-| `max` | Maximum value | Detect saturation |
-| `var` | Variance | Monitor activation spread |
-| `abs_mean` | Mean of absolute values | Monitor activation strength |
-| `hist` | 50-bin histogram | Visualize distributions |
+| Statistic  | Description             | Use Case                              |
+| ---------- | ----------------------- | ------------------------------------- |
+| `mean`     | Mean value              | Monitor activation levels             |
+| `std`      | Standard deviation      | Detect activation variance            |
+| `norm`     | L2 norm                 | Monitor gradient/activation magnitude |
+| `min`      | Minimum value           | Detect dead neurons                   |
+| `max`      | Maximum value           | Detect saturation                     |
+| `var`      | Variance                | Monitor activation spread             |
+| `abs_mean` | Mean of absolute values | Monitor activation strength           |
+| `hist`     | 50-bin histogram        | Visualize distributions               |
 
 ### Namespace structure
 
@@ -360,16 +371,19 @@ log_model_internals(
 Contributions to neptune-pytorch are welcome. Here's how you can help:
 
 ### Report issues
+
 - Found a bug? [Open an issue](https://github.com/neptune-ai/neptune-pytorch/issues)
 - Include Python version, PyTorch version, and error traceback
 - Provide a minimal reproducible example
 
 ### Suggest features
+
 - Have an idea? [Create a feature request](https://github.com/neptune-ai/neptune-pytorch/issues)
 - Describe the use case and expected behavior
 - Check existing issues first to avoid duplicates
 
 ### Contribute code
+
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/amazing-feature`
 3. Make your changes and add tests
@@ -381,11 +395,13 @@ Contributions to neptune-pytorch are welcome. Here's how you can help:
 ## Support
 
 ### Get help
+
 - 📖 **Documentation**: [Neptune PyTorch Docs](https://docs.neptune.ai/integrations/pytorch/)
 - 🔧 **Troubleshooting**: [Common Issues Guide](https://docs.neptune.ai/troubleshooting)
 - 🎫 **Support Portal**: [Reach out to us](https://supportneptune.ai)
 
 ### Resources
+
 - [Neptune Documentation](https://docs.neptune.ai/)
 - [PyTorch Documentation](https://pytorch.org/docs/)
 - [Neptune Examples](https://github.com/neptune-ai/scale-examples)

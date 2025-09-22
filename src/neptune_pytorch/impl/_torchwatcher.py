@@ -27,6 +27,8 @@ TENSOR_STATS = {
     "abs_mean": lambda x: x.abs().mean().item(),
     "hist": lambda x: torch.histogram(x, bins=50),
 }
+# Create a proper type for tensor statistics
+TensorStatType = Literal["mean", "std", "norm", "min", "max", "var", "abs_mean", "hist"]
 
 
 class _HookManager:
@@ -163,7 +165,7 @@ class _TorchWatcher:
         run: Any,
         base_namespace: str,
         track_layers: Optional[List[Type[nn.Module]]] = None,
-        tensor_stats: Optional[List[Literal[tuple(TENSOR_STATS.keys())]]] = None,
+        tensor_stats: Optional[List[TensorStatType]] = None,
     ) -> None:
         """
         Initialize TorchWatcher with configuration options.
@@ -352,11 +354,3 @@ class _TorchWatcher:
 
         # Clear hooks and cached data
         self.hm.clear()
-
-    def __enter__(self):
-        """Context manager entry."""
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit - cleanup hooks."""
-        self.hm.remove_hooks()

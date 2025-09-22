@@ -20,7 +20,6 @@ import uuid
 import warnings
 from typing import (
     List,
-    Literal,
     Optional,
     Type,
 )
@@ -30,7 +29,7 @@ import torch.nn as nn
 from neptune_scale import Run
 
 from neptune_pytorch.impl._torchwatcher import (
-    TENSOR_STATS,
+    TensorStatType,
     _TorchWatcher,
 )
 from neptune_pytorch.impl.version import __version__
@@ -121,7 +120,7 @@ class NeptuneLogger:
         base_namespace: Optional[str] = None,
         log_model_diagram: bool = False,
         track_layers: Optional[List[Type[nn.Module]]] = None,
-        tensor_stats: Optional[List[Literal[tuple(TENSOR_STATS.keys())]]] = None,
+        tensor_stats: Optional[List[TensorStatType]] = None,
     ):
         if not isinstance(run, Run):
             raise ValueError("run must be a Neptune Run object")

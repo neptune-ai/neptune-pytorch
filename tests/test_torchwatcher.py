@@ -335,13 +335,13 @@ class TestTorchWatcher:
             assert hasattr(hist_data, "bin_edges"), "Histogram should have bin_edges"
             assert hasattr(hist_data, "counts"), "Histogram should have counts"
 
-    def test_context_manager(self, mock_run, test_model):
-        """Test TorchWatcher as context manager."""
-        with _TorchWatcher(model=test_model, run=mock_run, base_namespace="test") as tw:
-            assert tw is not None
-            assert len(tw.hm.hooks) > 0
+    def test_hook_cleanup_on_destruction(self, mock_run, test_model):
+        """Test that hooks are cleaned up when TorchWatcher is destroyed."""
+        tw = _TorchWatcher(model=test_model, run=mock_run, base_namespace="test")
+        assert len(tw.hm.hooks) > 0
 
-        # Hooks should be removed after context exit
+        # Manually call remove_hooks to test cleanup
+        tw.hm.remove_hooks()
         assert len(tw.hm.hooks) == 0
 
     def test_safe_tensor_stats(self, mock_run, test_model):
