@@ -349,23 +349,6 @@ log_model_internals(
 | `abs_mean` | Mean of absolute values | Monitor activation strength           |
 | `hist`     | 50-bin histogram        | Visualize distributions               |
 
-### Namespace structure
-
-```
-{base_namespace}/                # Optional custom folder
-├── batch/                       # User-logged metrics
-│   └── loss                     # Training loss
-├── model/
-│   ├── summary                  # Model architecture summary (if enabled)
-│   ├── diagram                  # Model architecture diagram (if enabled)
-│   └── internals/               # Auto-tracked metrics
-│       ├── {prefix}/            # Optional phase (train/validation)
-│       │   ├── activations/     # Layer activations
-│       │   ├── gradients/       # Layer gradients
-│       │   └── parameters/      # Model parameters
-│       └── {metric_type}/       # Direct access (no prefix)
-```
-
 ## Contributing
 
 Contributions to neptune-pytorch are welcome. Here's how you can help:
@@ -396,9 +379,10 @@ Contributions to neptune-pytorch are welcome. Here's how you can help:
 
 ### Get help
 
-- 📖 **Documentation**: [Neptune PyTorch Docs](https://docs.neptune.ai/integrations/pytorch/)
+<!--- 📖 **Documentation**: [Neptune PyTorch Docs](https://docs.neptune.ai/integrations/pytorch/)-->
+
 - 🔧 **Troubleshooting**: [Common Issues Guide](https://docs.neptune.ai/troubleshooting)
-- 🎫 **Support Portal**: [Reach out to us](https://supportneptune.ai)
+- 🎫 **Support Portal**: [Reach out to us](https://support.neptune.ai)
 
 ### Resources
 

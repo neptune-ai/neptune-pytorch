@@ -201,11 +201,11 @@ class TestTorchWatcher:
         # Forward pass to generate activations
         _ = test_model(test_data)
 
-        tw.track_activations()
+        metrics = tw.track_activations()
 
         # Check that activations were tracked
-        assert len(tw.debug_metrics) > 0
-        for key in tw.debug_metrics:
+        assert len(metrics) > 0
+        for key in metrics:
             assert key.startswith("test/model/internals/activations/")
             assert key.endswith(("/mean", "/norm"))
 
@@ -218,11 +218,11 @@ class TestTorchWatcher:
         loss = F.nll_loss(output, torch.randint(0, 10, (2,)))
         loss.backward()
 
-        tw.track_gradients()
+        metrics = tw.track_gradients()
 
         # Check that gradients were tracked
-        assert len(tw.debug_metrics) > 0
-        for key in tw.debug_metrics:
+        assert len(metrics) > 0
+        for key in metrics:
             assert key.startswith("test/model/internals/gradients/")
             assert key.endswith(("/mean", "/norm"))
 
@@ -235,11 +235,11 @@ class TestTorchWatcher:
             tensor_stats=["mean", "norm"],
         )
 
-        tw.track_parameters()
+        metrics = tw.track_parameters()
 
         # Check that parameters were tracked
-        assert len(tw.debug_metrics) > 0
-        for key in tw.debug_metrics:
+        assert len(metrics) > 0
+        for key in metrics:
             assert key.startswith("test/model/internals/parameters/")
             assert key.endswith(("/mean", "/norm"))
 
@@ -253,8 +253,8 @@ class TestTorchWatcher:
         )
 
         # Should log every time
-        tw.track_parameters()
-        assert len(tw.debug_metrics) > 0
+        metrics = tw.track_parameters()
+        assert len(metrics) > 0
 
     def test_watch_method(self, mock_run, test_model, test_data):
         """Test the main watch method."""
@@ -369,17 +369,16 @@ class TestTorchWatcher:
 
         # Test without prefix
         test_data = {"layer1": torch.tensor([1.0, 2.0])}
-        tw._track_metric("activations", test_data)
+        metrics = tw._track_metric("activations", test_data)
 
         expected_key = "test/model/internals/activations/layer1/mean"
-        assert expected_key in tw.debug_metrics
+        assert expected_key in metrics
 
         # Test with prefix
-        tw.debug_metrics.clear()
-        tw._track_metric("gradients", test_data, prefix="train")
+        metrics = tw._track_metric("gradients", test_data, prefix="train")
 
         expected_key = "test/model/internals/train/gradients/layer1/mean"
-        assert expected_key in tw.debug_metrics
+        assert expected_key in metrics
 
 
 class TestIntegration:

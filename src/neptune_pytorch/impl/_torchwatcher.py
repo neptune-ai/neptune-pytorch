@@ -204,7 +204,6 @@ class _TorchWatcher:
         self.base_namespace = base_namespace
         self.track_layers = track_layers
         self.hm = _HookManager(model, track_layers)
-        self.debug_metrics: Dict[str, float] = {}
 
         self.tensor_stats = {stat: TENSOR_STATS[stat] for stat in tensor_stats}
 
@@ -230,14 +229,23 @@ class _TorchWatcher:
                 logger.warning(f"Could not compute {stat_name} statistic: {e}")
         return stats
 
-    def _track_metric(self, metric_type: str, data: Dict[str, torch.Tensor], prefix: Optional[str] = None):
+    def _track_metric(
+        self,
+        metric_type: str,
+        data: Dict[str, torch.Tensor],
+        prefix: Optional[str] = None,
+        output: Optional[Dict] = None,
+    ):
         """Track metrics with enhanced statistics for a given metric type.
 
         Args:
             metric_type (str): Type of metric being tracked (activations/gradients/parameters)
             data (Dict[str, torch.Tensor]): Dictionary mapping layer names to tensors
             prefix (Optional[str]): Optional prefix for phase organization (e.g., "train", "validation")
+            output (Optional[Dict]): Dictionary to store the metrics. If None, creates a new dict.
         """
+        if output is None:
+            output = {}
 
         for layer, tensor in data.items():
             if tensor is not None:
@@ -256,23 +264,25 @@ class _TorchWatcher:
                         namespace = f"model/internals/{prefix}/{metric_type}/{safe_layer_name}/{stat_name}"
                     else:
                         namespace = f"model/internals/{metric_type}/{safe_layer_name}/{stat_name}"
-                    self.debug_metrics[namespace] = stat_value
+                    output[namespace] = stat_value
 
-    def track_activations(self, namespace: Optional[str] = None):
+        return output
+
+    def track_activations(self, namespace: Optional[str] = None, output: Optional[Dict] = None):
         """Track layer activations with enhanced statistics."""
         activations = self.hm.get_activations()
-        self._track_metric("activations", activations, namespace)
+        return self._track_metric("activations", activations, namespace, output)
 
-    def track_gradients(self, namespace: Optional[str] = None):
+    def track_gradients(self, namespace: Optional[str] = None, output: Optional[Dict] = None):
         """Track layer gradients with enhanced statistics."""
         gradients = self.hm.get_gradients()
-        self._track_metric("gradients", gradients, namespace)
+        return self._track_metric("gradients", gradients, namespace, output)
 
-    def track_parameters(self, namespace: Optional[str] = None):
+    def track_parameters(self, namespace: Optional[str] = None, output: Optional[Dict] = None):
         """Track model parameters with enhanced statistics."""
         with torch.no_grad():
             parameters = {name: param.data for name, param in self.model.named_parameters() if param is not None}
-            self._track_metric("parameters", parameters, namespace)
+            return self._track_metric("parameters", parameters, namespace, output)
 
     def watch(
         self,
@@ -293,20 +303,20 @@ class _TorchWatcher:
             prefix (Optional[str]): Optional prefix for phase organization.
                 If provided, metrics will be logged under {base_namespace}/model/internals/{prefix}/...
         """
-        # Reset metrics
-        self.debug_metrics.clear()
+        # Create a new dictionary for this watch call
+        metrics = {}
 
         # Track metrics based on boolean flags
         if track_gradients:
-            self.track_gradients(prefix)
+            self.track_gradients(prefix, output=metrics)
         if track_parameters:
-            self.track_parameters(prefix)
+            self.track_parameters(prefix, output=metrics)
         if track_activations:
-            self.track_activations(prefix)
+            self.track_activations(prefix, output=metrics)
 
         # Process histograms with proper data type conversion
         histogram_stats = {}
-        for attribute_name, torch_hist in self.debug_metrics.items():
+        for attribute_name, torch_hist in metrics.items():
             if attribute_name.endswith("/hist"):
                 try:
                     # torch_hist is a torch.return_types.histogram object
@@ -340,17 +350,14 @@ class _TorchWatcher:
 
         metric_stats = {
             attribute_name: attribute_value
-            for attribute_name, attribute_value in self.debug_metrics.items()
+            for attribute_name, attribute_value in metrics.items()
             if not attribute_name.endswith("/hist")
         }
 
         # Log metrics
-        # Batch logging if possible, otherwise ensure atomicity
+        self.run.log_metrics(data=metric_stats, step=step)
         if histogram_stats:
-            self.run.log_metrics(data=metric_stats, step=step)
             self.run.log_histograms(histograms=histogram_stats, step=step)
-        else:
-            self.run.log_metrics(data=metric_stats, step=step)
 
         # Clear hooks and cached data
         self.hm.clear()
