@@ -24,9 +24,15 @@ pip install -U neptune-pytorch
 - **PyTorch 1.11+**: For tensor operations and model support
 - **NumPy 1.20+**: For numerical computations
 
-## Quick Start
+## Quickstart
 
-### Basic usage
+The below quickstart example logs the following data to Neptune:
+
+- **Model architecture**: Visual diagram and summary of the neural network
+- **Training metrics**: Loss curves and epoch progress
+- **Layer activations**: Mean, std, norm, histograms for each layer
+- **Gradient analysis**: Gradient statistics to detect vanishing/exploding gradients
+- **Parameter tracking**: Weight and bias distributions over time
 
 ```python
 import torch
@@ -86,15 +92,14 @@ for epoch in range(num_epochs):
             )
 ```
 
-**Logged data in Neptune:**
+## Advanced configuration
 
-- **Model architecture**: Visual diagram and summary of the neural network
-- **Training metrics**: Loss curves and epoch progress
-- **Layer activations**: Mean, std, norm, histograms for each layer
-- **Gradient analysis**: Gradient statistics to detect vanishing/exploding gradients
-- **Parameter tracking**: Weight and bias distributions over time
+The below example demonstrates the following additional features:
 
-### Advanced configuration
+- **Layer filtering**: Only track Conv2d and Linear layers (reduces overhead)
+- **Custom statistics**: Use mean, std, hist instead of all 8 statistics
+- **Phase-specific tracking**: Different tracking strategies for train/validation
+- **Frequency control**: Track every 20 steps in training, every 50 in validation
 
 ```python
 import torch
@@ -176,12 +181,6 @@ for epoch in range(num_epochs):
                 )
 ```
 
-**Features demonstrated:**
-
-- **Layer filtering**: Only track Conv2d and Linear layers (reduces overhead)
-- **Custom statistics**: Use mean, std, hist instead of all 8 statistics
-- **Phase-specific tracking**: Different tracking strategies for train/validation
-- **Frequency control**: Track every 20 steps in training, every 50 in validation
 
 ## Features
 
@@ -316,7 +315,7 @@ NeptuneLogger(
 - `tensor_stats`: Statistics to compute (default: `["mean", "norm", "hist"]`)
 - `log_model_diagram`: Log the model summary and diagram (default: `False`)
 
-### log_model_internals
+### log_model_internals()
 
 ```python
 log_model_internals(
@@ -338,7 +337,7 @@ log_model_internals(
 
 ### Available statistics
 
-| Statistic  | Description             | Use Case                              |
+| Statistic  | Description             | Use case                              |
 | ---------- | ----------------------- | ------------------------------------- |
 | `mean`     | Mean value              | Monitor activation levels             |
 | `std`      | Standard deviation      | Detect activation variance            |
@@ -372,7 +371,7 @@ Contributions to neptune-pytorch are welcome. Here's how you can help:
 3. Make your changes and add tests
 4. Run tests: `pytest tests/`
 5. Commit your changes: `git commit -m 'Add amazing feature'`
-6. Push to the branch: `git push origin feature/amazing-feature`
+6. Push to remote: `git push origin feature/amazing-feature`
 7. Open a Pull Request
 
 ## Support
