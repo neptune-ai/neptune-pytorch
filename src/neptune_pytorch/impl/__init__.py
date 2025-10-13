@@ -18,59 +18,71 @@ __all__ = ["__version__", "NeptuneLogger"]
 import os
 import uuid
 import warnings
-import weakref
 from typing import (
+    List,
     Optional,
-    Union,
+    Type,
 )
 
 import torch
+import torch.nn as nn
+from neptune_scale import Run
 
+from neptune_pytorch.impl._torchwatcher import (
+    TensorStatType,
+    _TorchWatcher,
+)
 from neptune_pytorch.impl.version import __version__
 
-try:
-    # neptune-client>=1.0.0 package structure
-    from neptune import Run
-    from neptune.handler import Handler
-    from neptune.internal.utils import verify_type
-    from neptune.types import File
-except ImportError:
-    from neptune.new import Run
-    from neptune.new.handler import Handler
-    from neptune.new.integrations.utils import verify_type
-    from neptune.new.types import File
-
-IS_TORCHVIZ_AVAILABLE = True
+_IS_TORCHVIZ_AVAILABLE = True
 try:
     import torchviz
     from graphviz import ExecutableNotFound
 except ImportError:
-    IS_TORCHVIZ_AVAILABLE = False
+    _IS_TORCHVIZ_AVAILABLE = False
 
-INTEGRATION_VERSION_KEY = "source_code/integrations/neptune-pytorch"
+_INTEGRATION_VERSION_KEY = "source_code/integrations/neptune-pytorch"
 
 
 class NeptuneLogger:
     """Captures model training metadata and logs them to Neptune.
 
+    This logger provides comprehensive model monitoring capabilities including:
+    - Model diagram and summary
+    - Layer activations, gradients, and parameters tracking
+    - Configurable statistics computation (mean, std, norm, histograms, etc.)
+    - Flexible layer filtering and parameter logging frequency control
+
     Args:
-        run: Neptune run object. You can also pass a namespace handler object;
-            for example, run["test"], in which case all metadata is logged under
-            the "test" namespace inside the run.
+        run: Neptune run object.
         model: PyTorch model whose metadata will be tracked.
-        base_namespace: Namespace where all metadata logged by the callback is stored.
-        log_gradients: Whether to track the frobenius-order norm of the gradients.
-        log_parameters: Whether to track the frobenius-order norm of the parameters.
-        log_freq: How often to log the parameters/gradients norm. Applicable only
-            if `log_parameters` or `log_gradients` is True.
-        log_model_diagram: Whether to save the model visualization.
+        base_namespace: Optional custom top-level folder for organizing logged data.
+            If None, metrics are logged under a "model" folder at the root level.
+        track_layers: List of PyTorch layer types to track. If None, tracks all layers.
+        tensor_stats: List of statistics to compute for tracked tensors.
+            Available options: "mean", "std", "norm", "min", "max", "var", "abs_mean", "hist".
+            Defaults to ["mean", "norm", "hist"].
+        log_model_diagram: Whether to save the model summary and diagram.
             Requires torchviz to be installed: https://pypi.org/project/torchviz/
 
     Example:
-        import neptune
-        from neptune.integrations.pytorch import NeptuneLogger
-        run = neptune.init_run()
+        from neptune_scale import Run
+        from neptune_pytorch import NeptuneLogger
+        import torch.nn as nn
+        import torch.nn.functional as F
+
+        run = Run()
+
+        # Basic usage with default settings
         neptune_callback = NeptuneLogger(run=run, model=model)
+
+        # Advanced usage with custom configuration
+        neptune_callback = NeptuneLogger(
+            run=run,
+            model=model,
+            track_layers=[nn.Conv2d, nn.Linear],  # Only track specific layer types
+            tensor_stats=["mean", "norm", "hist"],  # Custom statistics
+        )
 
         for epoch in range(1, 4):
             model.train()
@@ -83,6 +95,18 @@ class NeptuneLogger:
                 loss.backward()
                 optimizer.step()
 
+                # Log training metrics
+                run.log_metrics({f"{neptune_callback.base_namespace}/batch/loss": loss.item()})
+
+                # Log model internals (activations, gradients, parameters)
+                neptune_callback.log_model_internals(
+                    step=batch_idx,
+                    prefix="train",
+                    track_activations=True,
+                    track_gradients=True,
+                    track_parameters=True
+                )
+
     For more, see the docs:
         Tutorial: https://docs.neptune.ai/integrations/pytorch/
         API reference: https://docs.neptune.ai/api/integrations/pytorch/
@@ -90,204 +114,122 @@ class NeptuneLogger:
 
     def __init__(
         self,
-        run: Union[Run, Handler],
+        run: Run,
         *,
         model: torch.nn.Module,
-        base_namespace="training",
+        base_namespace: Optional[str] = None,
         log_model_diagram: bool = False,
-        log_gradients: bool = False,
-        log_parameters: bool = False,
-        log_freq: int = 100,
+        track_layers: Optional[List[Type[nn.Module]]] = None,
+        tensor_stats: Optional[List[TensorStatType]] = None,
     ):
-        verify_type("run", run, (Run, Handler))
+        if not isinstance(run, Run):
+            raise ValueError("run must be a Neptune Run object")
+        if not isinstance(model, torch.nn.Module):
+            raise ValueError("model must be a PyTorch model")
 
         self.run = run
         self.model = model
         self._base_namespace = base_namespace
         self.log_model_diagram = log_model_diagram
         self.ckpt_number = 1
-        self.log_freq = log_freq
-        self._namespace_handler = self.run[base_namespace]
 
-        self._is_viz_saved = False
-        self._vis_hook_handler = None
+        self._is_diagram_saved = False
+        self._diagram_hook_handler = None
         if log_model_diagram:
-            self.run[self._base_namespace]["model"]["summary"] = str(model)
-            self._add_visualization_hook()
+            summary_key = f"{self._base_namespace}/model/summary" if self._base_namespace else "model/summary"
+            self.run.log_configs({summary_key: str(model)})
+            self._add_diagram_hook()
 
-        self.log_gradients = log_gradients
-        self._gradients_iter_tracker = {}
-        self._gradients_hook_handler = {}
-        if self.log_gradients:
-            self._add_hooks_for_grads()
-
-        self.log_parameters = log_parameters
-        self._params_iter_tracker = 0
-        self._params_hook_handler = None
-        if self.log_parameters:
-            self._add_hooks_for_params()
+        # Initialize TorchWatcher for model internals tracking
+        self._torch_watcher = _TorchWatcher(
+            model=model,
+            run=run,
+            base_namespace=base_namespace or "",
+            track_layers=track_layers,
+            tensor_stats=tensor_stats,
+        )
 
         # Log integration version
-        root_obj = self.run
-        if isinstance(self.run, Handler):
-            root_obj = self.run.get_root_obj()
+        self.run.log_configs({_INTEGRATION_VERSION_KEY: __version__})
 
-        root_obj[INTEGRATION_VERSION_KEY] = __version__
-
-    def _add_hooks_for_grads(self):
-        for name, parameter in self.model.named_parameters():
-            self._gradients_iter_tracker[name] = 0
-
-            def hook(grad, name=name):
-                self._gradients_iter_tracker[name] += 1
-                if self._gradients_iter_tracker[name] % self.log_freq == 0:
-                    self._namespace_handler["plots"]["gradients"][name].append(grad.norm())
-
-            self._gradients_hook_handler[name] = parameter.register_hook(hook)
-
-    def _add_visualization_hook(self):
-        if not IS_TORCHVIZ_AVAILABLE:
-            msg = "Skipping model visualization because no torchviz installation was found."
+    def _add_diagram_hook(self):
+        if not _IS_TORCHVIZ_AVAILABLE:
+            msg = "Skipping model diagram because no torchviz installation was found."
             warnings.warn(msg)
             return
 
         def hook(module, input, output):
-            if not self._is_viz_saved:
+            if not self._is_diagram_saved:
                 dot = torchviz.make_dot(output, params=dict(module.named_parameters()))
                 dot.format = "png"
                 # generate unique name so that multiple concurrent runs
                 # don't over-write each other.
-                viz_name = str(uuid.uuid4()) + ".png"
+                viz_name = f"{str(uuid.uuid4())}.png"
                 try:
-                    dot.render(outfile=viz_name)
-                    safe_upload_visualization(self._namespace_handler["model"], "visualization", viz_name)
+                    dot.render(outfile=viz_name, cleanup=True)
+                    _safe_upload_diagram(self.run, f"{self._base_namespace}/model/diagram", viz_name)
                 except ExecutableNotFound:
                     # This errors because `dot` renderer is not found even
                     # if python binding of `graphviz` are available.
-                    warnings.warn("Skipping model visualization because no dot (graphviz) installation was found.")
+                    warnings.warn("Skipping model diagram because no dot (graphviz) installation was found.")
 
-                self._is_viz_saved = True
+                self._is_diagram_saved = True
 
-        self._vis_hook_handler = self.model.register_forward_hook(hook)
-
-    def _add_hooks_for_params(self):
-        def hook(module, inp, output):
-            self._params_iter_tracker += 1
-            if self._params_iter_tracker % self.log_freq == 0:
-                for name, param in module.named_parameters():
-                    self._namespace_handler["plots"]["parameters"][name].append(param.norm())
-
-        self._params_hook_handler = self.model.register_forward_hook(hook)
+        self._diagram_hook_handler = self.model.register_forward_hook(hook)
 
     @property
     def base_namespace(self):
         return self._base_namespace
 
-    def log_model(self, model_name: Optional[str] = None):
-        """Uploads the model to Neptune.
-
-        The model is saved in a namespace called "model" nested under the base namespace of the run, which is
-        "training" by default.
-
-        The filename is set to `model.pt` by default, but can be customized.
+    def log_model_internals(
+        self,
+        step: int,
+        track_activations: bool = True,
+        track_gradients: bool = True,
+        track_parameters: bool = False,
+        prefix: Optional[str] = None,
+    ):
+        """
+        Log model internals using TorchWatcher.
 
         Args:
-            model_name: Name for the logged model file. The extension `.pt` is added automatically.
-
-        Example:
-            from neptune_pytorch import NeptuneLogger
-            neptune_logger = NeptuneLogger()
-            ...
-            neptune_logger.log_model()
-
-        For more, see the docs:
-            Tutorial: https://docs.neptune.ai/integrations/pytorch/
-            API reference: https://docs.neptune.ai/api/integrations/pytorch/
+            step: Logging step
+            track_activations: Whether to track activations. Defaults to True.
+            track_gradients: Whether to track gradients. Defaults to True.
+            track_parameters: Whether to track parameters. Defaults to False.
+            prefix: Optional prefix for phase organization (e.g., "train", "validation").
+                If provided, internal metrics will be logged under {base_namespace}/model/internals/{prefix}/...
         """
-        if model_name is None:
-            # Default model name
-            model_name = "model.pt"
-        else:
-            # User is not expected to add extension
-            model_name = model_name + ".pt"
-
-        safe_upload_model(self._namespace_handler["model"], model_name, self.model)
-
-    def log_checkpoint(self, checkpoint_name: Optional[str] = None):
-        """Uploads a model checkpoint to Neptune.
-
-        The checkpoint is saved in a namespace called "model/checkpoints" nested under the base namespace of the run,
-        which is "training" by default.
-
-        The filename is set to `checkpoint_<checkpoint number>.pt` by default, but can be customized.
-
-        Args:
-            checkpoint_name: Name for the logged checkpoint file.
-                If left empty, the checkpoint number used for the file name starts from 1 and is incremented
-                automatically on each call. The extension `.pt` is added automatically.
-
-        Example:
-            from neptune_pytorch import NeptuneLogger
-            neptune_logger = NeptuneLogger()
-            ...
-            for epoch in range(parameters["epochs"]):
-                ...
-                neptune_logger.log_checkpoint()
-
-        For more, see the docs:
-            Tutorial: https://docs.neptune.ai/integrations/pytorch/
-            API reference: https://docs.neptune.ai/api/integrations/pytorch/
-        """
-        if checkpoint_name is None:
-            # Default checkpoint name
-            checkpoint_name = f"checkpoint_{self.ckpt_number}.pt"
-            self.ckpt_number += 1
-        else:
-            # User is not expected to add extension
-            checkpoint_name = checkpoint_name + ".pt"
-
-        safe_upload_model(self._namespace_handler["model"]["checkpoints"], checkpoint_name, self.model)
+        self._torch_watcher.watch(
+            step=step,
+            track_activations=track_activations,
+            track_gradients=track_gradients,
+            track_parameters=track_parameters,
+            prefix=prefix,
+        )
 
     def __del__(self):
         # Remove hooks
-        if self._params_hook_handler is not None:
-            self._params_hook_handler.remove()
+        if self._diagram_hook_handler is not None:
+            self._diagram_hook_handler.remove()
 
-        for name, handler in self._gradients_hook_handler.items():
-            if handler is not None:
-                handler.remove()
-
-        if self._vis_hook_handler is not None:
-            self._vis_hook_handler.remove()
+        # Clean up TorchWatcher
+        self._torch_watcher.hm.remove_hooks()
 
 
-def safe_upload_visualization(run: Run, name: str, file_name: str):
+def _safe_upload_diagram(run: Run, name: str, file_name: str):
     # Function to safely upload a file and
     # delete the file on completion of upload.
-    # We utilise the weakref.finalize to remove
-    # the file once the stream object goes out-of-scope.
-
-    def remove(file_name):
-        os.remove(file_name)
+    try:
+        # Upload the file
+        run.assign_files({f"{name}": file_name})
+        # Wait for the upload to complete
+        run.wait_for_processing()
+    finally:
+        # Clean up the files after upload is complete
+        if os.path.exists(file_name):
+            os.remove(file_name)
         # Also remove graphviz intermediate file.
-        os.remove(file_name.replace(".png", ".gv"))
-
-    with open(file_name, "rb") as f:
-        weakref.finalize(f, remove, file_name)
-        run[name].upload(File.from_stream(f, extension="png"))
-
-
-def safe_upload_model(run: Run, name: str, model: torch.nn.Module):
-    # Function to safely upload a file and
-    # delete the file on completion of upload.
-    # We utilise the weakref.finalize to remove
-    # the file once the stream object goes out-of-scope.
-
-    torch.save(model.state_dict(), name)
-
-    def remove(file_name):
-        os.remove(file_name)
-
-    with open(name, "rb") as f:
-        weakref.finalize(f, remove, name)
-        run[name].upload(File.from_stream(f))
+        gv_file = file_name.replace(".png", ".gv")
+        if os.path.exists(gv_file):
+            os.remove(gv_file)
